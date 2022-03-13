@@ -79,8 +79,6 @@ class GmailClass
         if (array_key_exists('error', $accessToken)) {
             throw new Exception(join(', ', $accessToken));
         } else {
-            print_r($accessToken);
-            exit;
             // Store the token to disk.
             if (!file_exists(dirname($this->tokenPath))) {
                 mkdir(dirname($this->tokenPath), 0700, true);
