@@ -1,10 +1,13 @@
 <?php
 
-class GmailClass
+use JetBrains\PhpStorm\NoReturn;
+
+class GmailClient
 {
     private string $redirectUri;
     private string $tokenPath;
     private string $sender;
+    private string $userId;
 
     /**
      * @throws Exception
@@ -12,8 +15,9 @@ class GmailClass
     public function __construct()
     {
         $this->redirectUri = 'http://localhost:8080/callback.php';
-        $this->tokenPath = 'token.json';
-        $this->sender = 'me';
+        $this->tokenPath =  __DIR__.'/token.json';
+        $this->sender = '"Test" <test@test.com>';
+        $this->userId = 'me';
     }
 
     /**
@@ -24,6 +28,7 @@ class GmailClass
      */
     protected function getClient(): Google_Client
     {
+
         $client = new Google_Client();
         $client->setApplicationName('Gmail API Mail Sender');
         $client->setScopes(scope_or_scopes: [Google_Service_Gmail::GMAIL_SEND]);
@@ -32,29 +37,28 @@ class GmailClass
         $client->setPrompt('select_account consent');
         $client->setRedirectUri($this->redirectUri);
 
-
-        // Load previously authorized token from a file, if it exists.
-        // The file token.json stores the user's access and refresh tokens, and is
-        // created automatically when the authorization flow completes for the first
-        // time.
         if (file_exists($this->tokenPath)) {
             $accessToken = json_decode(file_get_contents($this->tokenPath), true);
             $client->setAccessToken($accessToken);
         }
 
-        // If there is no previous token, or it's expired.
         if ($client->isAccessTokenExpired()) {
-            // Refresh the token if possible, else fetch a new one.
             if ($client->getRefreshToken()) {
                 $client->fetchAccessTokenWithRefreshToken($client->getRefreshToken());
-            } else {
-                // Request authorization from the user.
-                $authUrl = $client->createAuthUrl();
-                header('Location: ' . $authUrl);
-                exit;
             }
         }
         return $client;
+    }
+
+    /**
+     * @throws \Google\Exception
+     */
+    #[NoReturn] public function authorize(): void
+    {
+        $client = $this->getClient();
+        $authUrl = $client->createAuthUrl();
+        header('Location: ' . $authUrl);
+        exit;
     }
 
     /**
@@ -72,14 +76,11 @@ class GmailClass
     public function setAccessToken(string $authCode): void
     {
         $client = $this->getClient();
-        // Exchange authorization code for an access token.
         $accessToken = $client->fetchAccessTokenWithAuthCode($authCode);
 
-        // Check to see if there was an error.
         if (array_key_exists('error', $accessToken)) {
             throw new Exception(join(', ', $accessToken));
         } else {
-            // Store the token to disk.
             if (!file_exists(dirname($this->tokenPath))) {
                 mkdir(dirname($this->tokenPath), 0700, true);
             }
@@ -136,7 +137,7 @@ class GmailClass
     {
         $message = $this->createMessage($this->sender, $to, $subject, $messageText);
         try {
-            $response = $this->getService()->users_messages->send('me', $message);
+            $response = $this->getService()->users_messages->send($this->userId, $message);
             return $response->getId();
         } catch (Exception $e) {
             return 'An error occurred: ' . $e->getMessage();
